@@ -8,3 +8,5 @@
 for 164 KB file
 
 StephenProposition doesn't work with sse data when input contains also other data than json. It's not a problem for StreamJsonParser.
+
+`dotnet run -C Release /optimize --framework net8.0`
