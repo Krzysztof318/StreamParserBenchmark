@@ -8,5 +8,9 @@
 for 164 KB file
 
 StephenProposition doesn't work with sse data when input contains also other data than json. It's not a problem for StreamJsonParser.
+StreamJsonParser tolerate garbage input like `fiddf { "object": { "name": "hello" } } fdsfgf24rf` >> `{ "object": { "name": "hello" } }`
 
 `dotnet run -C Release /optimize --framework net8.0`
+
+StephenProposition requires also adding new dependecies to SK:
+https://www.nuget.org/packages/System.IO.Pipelines/
