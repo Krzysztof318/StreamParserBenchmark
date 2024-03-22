@@ -26,20 +26,7 @@ public class Bench
         data_2 = data_2.Substring(startIndex, data_2.LastIndexOf('}')-startIndex+1);
         data_2 = data_2.Replace(",\n", "");
     }
-
-    [Benchmark]
-    public async Task ParserVersion3GeminiNoSSE()
-    {
-        var stream = LoadDataToStream(data_2);
-        var class1 = new ParserVersion3();
-        using var reader = new StreamReader(stream);
-        await foreach (var jsonDocument in class1.ParseJson(reader))
-        {
-            // we need to parse to business object
-            var jsonObj = jsonDocument.Deserialize<MyObjectJson>();
-            jsonDocument.Dispose();
-        }
-    }
+    
 
     [Benchmark]
     public async Task StephenProposition()
@@ -119,36 +106,3 @@ public class StephenProposition
     }
 }
 
-public class ParserVersion3
-{
-    public async IAsyncEnumerable<JsonDocument> ParseJson(StreamReader reader)
-    {
-        JsonReaderState state = default;
-        StringBuilder sb = new StringBuilder();
-        while (await reader.ReadLineAsync() is { } line)
-        {
-            // I know this code is not performant, but it's just for the showing of exception during parsing
-            sb.Append(line);
-            var buff = new ReadOnlySequence<byte>(Encoding.UTF8.GetBytes(sb.ToString()));
-            if (TryParseJson(ref buff, out var jsonDocument, ref state))
-            {
-                yield return jsonDocument;
-                state = default;
-                sb.Clear();
-            }
-        }
-    }
-
-    bool TryParseJson(ref ReadOnlySequence<byte> buffer, out JsonDocument jsonDocument, ref JsonReaderState state )
-    {
-        var reader = new Utf8JsonReader(buffer, isFinalBlock: false, state);
-
-        if (JsonDocument.TryParseValue(ref reader, out jsonDocument))
-        {
-            return true;
-        }
-
-        state = reader.CurrentState;
-        return false;
-    }
-}
