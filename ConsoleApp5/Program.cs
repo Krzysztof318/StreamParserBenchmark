@@ -8,30 +8,43 @@ using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using ConsoleApp5;
 
-// DefaultConfig.Instance
-//     .AddJob(Job
-//         .MediumRun
-//         .WithLaunchCount(1)
-//         .WithToolchain(InProcessEmitToolchain.Instance));
-
 BenchmarkRunner.Run<Bench>();
 
-[SimpleJob(RuntimeMoniker.Net47)]
-[SimpleJob(RuntimeMoniker.Net80)]
 [MemoryDiagnoser]
+[SimpleJob(RuntimeMoniker.Net80)]
+[SimpleJob(RuntimeMoniker.Net47)]
 public class Bench
 {
-    string data = File.ReadAllText(@"test.txt");
+    string data_1 = File.ReadAllText(@"test.txt");
+    string data_2;
     
     public Bench()
     {
-        
+        data_2 = File.ReadAllText(@"chat_stream_response.json");
+        // only to simplify benchmark - removed first [ and last ] and commas between json objects
+        int startIndex = data_2.IndexOf('{');
+        data_2 = data_2.Substring(startIndex, data_2.LastIndexOf('}')-startIndex+1);
+        data_2 = data_2.Replace(",\n", "");
+    }
+
+    [Benchmark]
+    public async Task ParserVersion3GeminiNoSSE()
+    {
+        var stream = LoadDataToStream(data_2);
+        var class1 = new ParserVersion3();
+        using var reader = new StreamReader(stream);
+        await foreach (var jsonDocument in class1.ParseJson(reader))
+        {
+            // we need to parse to business object
+            var jsonObj = jsonDocument.Deserialize<MyObjectJson>();
+            jsonDocument.Dispose();
+        }
     }
 
     [Benchmark]
     public async Task StephenProposition()
     {
-        var stream = LoadDataToStream();
+        var stream = LoadDataToStream(data_1);
         var class1 = new StephenProposition();
         var reader = PipeReader.Create(stream);
         await foreach (var jsonDocument in class1.ParseJson(reader))
@@ -45,7 +58,7 @@ public class Bench
     [Benchmark]
     public async Task StreamJsonParser()
     {
-        var stream = LoadDataToStream();
+        var stream = LoadDataToStream(data_1);
         var parser = new StreamJsonParser();
         var result = parser.ParseAsync(stream);
         await foreach (var item in result)
@@ -55,7 +68,7 @@ public class Bench
         }
     }
 
-    private MemoryStream LoadDataToStream()
+    private MemoryStream LoadDataToStream(string data)
     {
         var stream = new MemoryStream(Encoding.UTF8.GetBytes(data));
         return stream;
@@ -102,6 +115,40 @@ public class StephenProposition
             return true;
         }
 
+        return false;
+    }
+}
+
+public class ParserVersion3
+{
+    public async IAsyncEnumerable<JsonDocument> ParseJson(StreamReader reader)
+    {
+        JsonReaderState state = default;
+        StringBuilder sb = new StringBuilder();
+        while (await reader.ReadLineAsync() is { } line)
+        {
+            // I know this code is not performant, but it's just for the showing of exception during parsing
+            sb.Append(line);
+            var buff = new ReadOnlySequence<byte>(Encoding.UTF8.GetBytes(sb.ToString()));
+            if (TryParseJson(ref buff, out var jsonDocument, ref state))
+            {
+                yield return jsonDocument;
+                state = default;
+                sb.Clear();
+            }
+        }
+    }
+
+    bool TryParseJson(ref ReadOnlySequence<byte> buffer, out JsonDocument jsonDocument, ref JsonReaderState state )
+    {
+        var reader = new Utf8JsonReader(buffer, isFinalBlock: false, state);
+
+        if (JsonDocument.TryParseValue(ref reader, out jsonDocument))
+        {
+            return true;
+        }
+
+        state = reader.CurrentState;
         return false;
     }
 }
