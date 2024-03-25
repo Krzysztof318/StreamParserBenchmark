@@ -7,6 +7,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using ConsoleApp5;
+using ConsoleApp5.Azure;
 
 BenchmarkRunner.Run<Bench>();
 
@@ -17,6 +18,7 @@ public class Bench
 {
     string data_1 = File.ReadAllText(@"test.txt");
     string data_2;
+    string data_sse = File.ReadAllText(@"data_sse.txt");
     
     public Bench()
     {
@@ -29,7 +31,7 @@ public class Bench
     
 
     [Benchmark]
-    public async Task StephenProposition()
+    public async Task StephenPropositionNoSse()
     {
         var stream = LoadDataToStream(data_1);
         var class1 = new StephenProposition();
@@ -43,7 +45,7 @@ public class Bench
     }
 
     [Benchmark]
-    public async Task StreamJsonParser()
+    public async Task StreamJsonParserNoSse()
     {
         var stream = LoadDataToStream(data_1);
         var parser = new StreamJsonParser();
@@ -52,6 +54,31 @@ public class Bench
         {
             // here we can parse just to business object
             var jsonObj = JsonSerializer.Deserialize<MyObjectJson>(item);
+        }
+    }
+    
+    [Benchmark]
+    public async Task StreamJsonParserSseData()
+    {
+        var stream = LoadDataToStream(data_sse);
+        var parser = new StreamJsonParser();
+        var result = parser.ParseAsync(stream);
+        await foreach (var item in result)
+        {
+            // here we can parse just to business object
+            var jsonObj = JsonSerializer.Deserialize<MyObjectJson>(item);
+        }
+    }
+    
+    [Benchmark]
+    public async Task AzureJsonParserSseData()
+    {
+        var stream = LoadDataToStream(data_sse);
+        var result = SseJsonParser.ParseAsync<MyObjectJson>(stream);
+        await foreach (var item in result)
+        {
+            // any logic here
+            var jsonObj = item;
         }
     }
 
